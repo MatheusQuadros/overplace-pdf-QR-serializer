@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nina Neutrina · Inserir QR, Texto ou Formas em PDF</title>
+<style>
+  :root{
+    --azul:#b2eaff; --menta:#67bf84; --limao:#f7ffc7; --pessego:#ffceb0;
+    --lilas:#de9cd8; --coral:#fda295; --dark:#000000;
+    --borda:#dfe7ea; --suave:#f4f8fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Nunito','Segoe UI',system-ui,sans-serif;color:var(--dark);
+    background:linear-gradient(160deg,#eef9ff,#fbfff0);padding:24px;}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:#5a6a70;margin:0 0 24px;font-size:.95rem}
+  .wrap{max-width:1080px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--borda);border-radius:16px;padding:20px 22px;
+    margin-bottom:18px;box-shadow:0 2px 10px rgba(32,40,44,.04);}
+  .step{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+  .num{background:var(--menta);color:#fff;width:28px;height:28px;border-radius:50%;
+    display:grid;place-items:center;font-weight:800;font-size:.9rem;flex:0 0 auto;}
+  .step h2{font-size:1.05rem;margin:0}
+  label{display:block;font-weight:700;font-size:.85rem;margin:12px 0 4px}
+  input[type=text],input[type=number],select,textarea{width:100%;padding:9px 11px;
+    border:1px solid var(--borda);border-radius:9px;font:inherit;background:#fff;}
+  textarea{resize:vertical;min-height:90px;font-family:ui-monospace,Consolas,monospace;font-size:.85rem}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:140px}
+  .hint{font-size:.78rem;color:#7a8a90;margin:4px 0 0}
+  button{font:inherit;font-weight:800;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;
+    background:var(--menta);color:#fff;transition:.15s;}
+  button:hover{filter:brightness(1.05)}
+  button.ghost{background:var(--suave);color:var(--dark);border:1px solid var(--borda)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .drop{border:2px dashed var(--azul);border-radius:14px;padding:30px;text-align:center;
+    background:var(--suave);cursor:pointer;color:#5a6a70;}
+  .drop.drag{background:var(--azul);color:var(--dark)}
+  .preview-area{position:relative;display:inline-block;max-width:100%;margin-top:10px;
+    border:1px solid var(--borda);border-radius:8px;overflow:hidden;background:#fafafa}
+  #pageCanvas{display:block;max-width:100%}
+  .preview-area.picking{cursor:crosshair}
+  .preview-area.picking .shpbox,
+  .preview-area.picking .txtbox,
+  .preview-area.picking #qrBox{pointer-events:none}
+
+  /* --- caixa do QR (topo da pilha) --- */
+  #qrBox{position:absolute;z-index:3;border:2px solid var(--coral);background:rgba(253,162,149,.15);
+    cursor:move;touch-action:none;}
+  #qrBox .handle{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;border-radius:50%;
+    background:var(--coral);cursor:nwse-resize;border:2px solid #fff;}
+  #qrBox .lbl{position:absolute;top:-20px;left:0;font-size:.7rem;background:var(--coral);color:#fff;
+    padding:1px 6px;border-radius:5px;white-space:nowrap}
+
+  /* --- caixas de texto (meio da pilha) --- */
+  .txtbox{position:absolute;z-index:2;cursor:move;touch-action:none;white-space:nowrap;line-height:1;
+    border:1px dashed var(--lilas);background:rgba(222,156,216,.10);padding:0;}
+
+  /* --- caixas de forma (fundo da pilha) --- */
+  .shpbox{position:absolute;z-index:1;cursor:move;touch-action:none;border:1px dashed #3b8f5c;}
+  .shpbox .handle{position:absolute;background:var(--menta);border:2px solid #fff;border-radius:3px}
+  .shpbox .handle[data-dir="se"]{right:-7px;bottom:-7px;width:14px;height:14px;border-radius:50%;cursor:nwse-resize}
+  .shpbox .handle[data-dir="e"]{right:-5px;top:50%;margin-top:-9px;width:10px;height:18px;cursor:ew-resize}
+  .shpbox .handle[data-dir="s"]{bottom:-5px;left:50%;margin-left:-9px;width:18px;height:10px;cursor:ns-resize}
+  .shpbox .lbl{position:absolute;top:-19px;left:0;font-size:.68rem;background:var(--menta);color:#fff;
+    padding:1px 6px;border-radius:5px;white-space:nowrap}
+
+  .nav{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  .nav button{padding:6px 12px;background:var(--suave);color:var(--dark);border:1px solid var(--borda)}
+  .pill{background:var(--limao);border-radius:20px;padding:3px 12px;font-weight:700;font-size:.82rem}
+  .seg{display:inline-flex;border:1px solid var(--borda);border-radius:10px;overflow:hidden;margin-top:4px}
+  .seg button{background:#fff;color:var(--dark);border:0;border-right:1px solid var(--borda);
+    padding:8px 14px;font-weight:700}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--azul);color:var(--dark)}
+  .bar{height:10px;background:var(--suave);border-radius:6px;overflow:hidden;margin-top:10px;display:none}
+  .bar i{display:block;height:100%;width:0;background:var(--menta);transition:width .2s}
+  .status{font-size:.85rem;margin-top:8px;min-height:1.2em}
+  .muted{display:none}
+  .ok{color:var(--menta);font-weight:700}
+  .err{color:#c0392b;font-weight:700}
+  .qr-prev{display:flex;align-items:center;gap:14px;margin-top:8px}
+  .qr-prev img{width:84px;height:84px;border:1px solid var(--borda);border-radius:8px;background:#fff}
+  .qr-prev small{color:#7a8a90;font-size:.78rem;word-break:break-all}
+  .txtrow,.shprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--borda);
+    border-radius:10px;margin-top:8px;background:var(--suave)}
+  .txtrow .chk,.shprow .chk{display:flex;align-items:center;gap:6px;font-weight:800;margin:0;white-space:nowrap}
+  .txtrow .chk input,.shprow .chk input{width:auto}
+  .txtrow .tpl{flex:2;min-width:180px}
+  .txtrow .fnt{flex:1;min-width:150px}
+  .txtrow .sz,.shprow .sz{width:78px;flex:0 0 auto}
+  .txtrow .clr,.shprow .clr{width:96px;flex:0 0 auto}
+  .txtrow input,.txtrow select,.shprow input{margin:0}
+  .shprow .ftag{font-size:.72rem;font-weight:800;color:#7a8a90;margin:0;white-space:nowrap}
+  .shprow input[type=color]{width:34px;height:34px;padding:2px;border:1px solid var(--borda);
+    border-radius:8px;background:#fff;cursor:pointer;flex:0 0 auto}
+  .shprow .eyed{padding:7px 10px;font-size:.9rem;background:#fff;color:var(--dark);border:1px solid var(--borda)}
+  .shprow .eyed.on{background:var(--limao);border-color:var(--menta)}
+  footer{text-align:center;color:#9aa8ad;font-size:.78rem;margin-top:10px}
+  code{background:#eef3f5;padding:1px 5px;border-radius:5px;font-size:.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Inserir QR, Texto ou Formas em PDF</h1>
+  <p class="sub">Adicione um QR code, até 5 textos variáveis e até 5 retângulos coloridos (para tapar logos ou áreas do PDF) — tudo roda local, no seu navegador.</p>
+
+  <!-- PASSO 1 -->
+  <div class="card">
+    <div class="step"><div class="num">1</div><h2>Carregar o PDF base</h2></div>
+    <div id="drop" class="drop">Arraste o PDF aqui ou clique para escolher</div>
+    <input type="file" id="pdfInput" accept="application/pdf" hidden>
+    <div id="pdfInfo" class="hint"></div>
+  </div>
+
+  <!-- PASSO 2 -->
+  <div class="card muted" id="card2">
+    <div class="step"><div class="num">2</div><h2>Posicionar QR, textos e formas</h2></div>
+    <p class="hint">Arraste o quadrado do QR (vermelho), as caixas de texto (lilás) e os retângulos (verde) para a posição desejada.
+      Textos e formas só aparecem depois de marcados nos passos 3 e 4. As formas ficam <b>por baixo</b> do QR e dos textos — então dá para tapar o fundo e escrever por cima.</p>
+    <div class="nav">
+      <button id="prevPg" type="button">◀</button>
+      <span class="pill">Página <span id="curPg">1</span> / <span id="totPg">1</span></span>
+      <button id="nextPg" type="button">▶</button>
+      <label style="margin:0 0 0 14px;display:flex;align-items:center;gap:6px;font-weight:700">
+        <input type="checkbox" id="allPages" style="width:auto"> Aplicar em todas as páginas
+      </label>
+      <span style="margin:0 0 0 14px;display:flex;align-items:center;gap:8px;font-weight:700">
+        Incluir QR code?
+        <span class="seg" id="qrSeg">
+          <button data-qr="sim" class="on" type="button">Sim</button>
+          <button data-qr="nao" type="button">Não</button>
+        </span>
+      </span>
+    </div>
+    <div class="preview-area" id="previewArea">
+      <canvas id="pageCanvas"></canvas>
+      <div id="qrBox"><span class="lbl">QR</span><span class="handle"></span></div>
+    </div>
+    <div class="status" id="pickStatus"></div>
+  </div>
+
+  <!-- PASSO 3 · FORMAS -->
+  <div class="card muted" id="card3">
+    <div class="step"><div class="num">3</div><h2>Formas (retângulos coloridos)</h2></div>
+    <p class="hint">Marque uma forma para ela aparecer no preview; ajuste posição e tamanho arrastando as alças verdes.
+      Use a cor em hexadecimal (ex.: <code>#000000</code> preto, <code>#ffffff</code> branco, <code>#003a70</code> azul).
+      Para pegar exatamente a cor do fundo do PDF, clique no <b>conta-gotas 🎨</b> e depois clique no ponto desejado da página.</p>
+    <div id="shpRows"></div>
+    <p class="hint"><b>Opacidade</b> em % (100 = cor sólida, ideal para apagar). <b>Borda</b> em pt (0 = sem contorno).</p>
+  </div>
+
+  <!-- PASSO 4 -->
+  <div class="card muted" id="card4">
+    <div class="step"><div class="num">4</div><h2>Configurar os dados</h2></div>
+
+    <div id="qrFieldsWrap">
+    <label>Template do QR code (use <code>{valor}</code>)</label>
+    <input type="text" id="tpl" value="https://exemplo.com.br/01/9521234567899/21/{valor}">
+    </div>
+
+    <label>Origem dos dados</label>
+    <div class="seg" id="srcSeg">
+      <button data-src="serial" class="on" type="button">Gerar seriais</button>
+      <button data-src="list" type="button">Colar lista</button>
+      <button data-src="csv" type="button">CSV</button>
+    </div>
+
+    <div id="srcSerial" style="margin-top:8px">
+      <div class="row">
+        <div><label>Prefixo</label><input type="text" id="serPref" value="010"></div>
+        <div><label>Início</label><input type="number" id="serStart" value="1" min="0"></div>
+        <div><label>Quantidade</label><input type="number" id="serQty" value="10" min="1"></div>
+        <div><label>Dígitos (zeros à esq.)</label><input type="number" id="serPad" value="8" min="1"></div>
+      </div>
+      <p class="hint">Padrão do selo: <b>010</b> + 8 dígitos → ex.: <b>01000000001</b></p>
+    </div>
+
+    <div id="srcList" style="margin-top:8px;display:none">
+      <label>Um valor por linha</label>
+      <textarea id="listData" placeholder="01000000001&#10;01000000002&#10;hospital-x"></textarea>
+    </div>
+
+    <div id="srcCsv" style="margin-top:8px;display:none">
+      <label>Arquivo CSV</label>
+      <input type="file" id="csvInput" accept=".csv,text/csv">
+      <label>Coluna para o <code>{valor}</code> (QR)</label>
+      <select id="csvCol"></select>
+      <p class="hint">No CSV, os textos podem usar outras colunas: <code>{c1}</code> = coluna 1, <code>{c2}</code> = coluna 2, e assim por diante.</p>
+    </div>
+
+    <div id="qrFieldsWrap2">
+    <div class="row" style="margin-top:6px">
+      <div><label>Correção de erro (QR)</label>
+        <select id="ecc"><option value="M">Média (M)</option><option value="Q">Alta (Q)</option><option value="H" selected>Máxima (H)</option><option value="L">Baixa (L)</option></select></div>
+      <div><label>Cor escura (QR)</label><input type="text" id="qrDark" value="#20282c"></div>
+      <div><label>Margem do QR</label><input type="number" id="qrMargin" value="1" min="0" max="6"></div>
+    </div>
+
+    <div class="qr-prev"><img id="qrPrev" alt="prévia"><small id="qrPrevTxt"></small></div>
+    </div>
+    <p class="hint" id="qrOffHint" style="display:none">QR code desativado — apenas textos e/ou formas serão inseridos.</p>
+
+    <label style="margin-top:18px">Textos variáveis (marque os que quiser usar)</label>
+    <p class="hint">Cada texto usa <code>{valor}</code> (o mesmo dado do registro) e, em CSV, também <code>{c1}</code>, <code>{c2}</code>… Exemplos: <code>Selo Nº {valor}</code>, <code>{c2}</code>, <code>Concluído em {c3}</code>.</p>
+    <div id="txtRows"></div>
+  </div>
+
+  <!-- PASSO 5 -->
+  <div class="card muted" id="card5">
+    <div class="step"><div class="num">5</div><h2>Gerar</h2></div>
+    <label>Formato de saída</label>
+    <div class="seg" id="outSeg">
+      <button data-out="zip" class="on" type="button">Vários PDFs (.zip)</button>
+      <button data-out="merge" type="button">PDF único (todas as páginas)</button>
+      <button data-out="single" type="button">1 PDF só (sem dados variáveis)</button>
+    </div>
+    <div id="zipOpts" style="margin-top:8px">
+      <label>Padrão do nome de cada arquivo (use <code>{valor}</code>)</label>
+      <input type="text" id="fnPat" value="selo_{valor}.pdf">
+    </div>
+    <p class="hint" id="singleHint" style="display:none">Gera <b>um único PDF</b> aplicando apenas o que está marcado (formas e textos fixos), ignorando a lista de dados. Útil quando você só quer tapar um logo.</p>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="genBtn" type="button">Gerar arquivos</button>
+      <button id="resetBtn" type="button" class="ghost">Recomeçar</button>
+    </div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <footer>Associação Nina Neutrina · ferramenta de uso interno · processamento 100% local</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+let originalBytes=null, pdfjsDoc=null, pageCount=0, curPage=1;
+let pxPerPt=1;                 // pixels exibidos por ponto do PDF
+let srcMode='serial', outMode='zip', csvRows=null, qrOn=true;
+let pickTargets=null;          // conta-gotas ativo -> {hex, color, i}
+
+const N_TXT=5, N_SHP=5;
+
+const FONTS = ['Helvetica','Helvetica-Bold','Times','Times-Bold','Courier','Courier-Bold'];
+const FONT_LABEL = {
+  'Helvetica':'Helvetica (sem serifa)','Helvetica-Bold':'Helvetica Negrito',
+  'Times':'Times (com serifa)','Times-Bold':'Times Negrito',
+  'Courier':'Courier (mono)','Courier-Bold':'Courier Negrito'
+};
+function cssFont(n){return {
+  'Helvetica':'Arial,Helvetica,sans-serif','Helvetica-Bold':'Arial,Helvetica,sans-serif',
+  'Times':'"Times New Roman",Times,serif','Times-Bold':'"Times New Roman",Times,serif',
+  'Courier':'"Courier New",Courier,monospace','Courier-Bold':'"Courier New",Courier,monospace'}[n];}
+function isBold(n){return n.indexOf('Bold')>=0;}
+function stdFont(n){const S=PDFLib.StandardFonts;return {
+  'Helvetica':S.Helvetica,'Helvetica-Bold':S.HelveticaBold,
+  'Times':S.TimesRoman,'Times-Bold':S.TimesRomanBold,
+  'Courier':S.Courier,'Courier-Bold':S.CourierBold}[n];}
+
+/* ---------- helpers de cor ---------- */
+function normHex(h){
+  h=String(h||'').trim().replace(/^#/,'');
+  if(/^[0-9a-fA-F]{3}$/.test(h)) h=h.split('').map(c=>c+c).join('');
+  if(!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  return '#'+h.toLowerCase();
+}
+function hexParts(hex){
+  const h=normHex(hex)||'#000000';
+  const n=parseInt(h.slice(1),16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function hexRgb(hex){const [r,g,b]=hexParts(hex);return PDFLib.rgb(r/255,g/255,b/255);}
+function hexRgba(hex,alpha){const [r,g,b]=hexParts(hex);return `rgba(${r},${g},${b},${alpha})`;}
+
+/* ---------- linhas de texto ---------- */
+(function buildTextRows(){
+  const cont=$('txtRows');
+  for(let i=0;i<N_TXT;i++){
+    const opts=FONTS.map(f=>`<option value="${f}">${FONT_LABEL[f]}</option>`).join('');
+    const row=document.createElement('div');
+    row.className='txtrow';
+    row.innerHTML=`
+      <label class="chk"><input type="checkbox" class="txtOn" data-i="${i}"> Texto ${i+1}</label>
+      <input type="text" class="txtTpl tpl" data-i="${i}" placeholder="Ex.: Selo Nº {valor}">
+      <select class="txtFont fnt" data-i="${i}">${opts}</select>
+      <input type="number" class="txtSize sz" data-i="${i}" value="12" min="4" title="Tamanho (pt)">
+      <input type="text" class="txtColor clr" data-i="${i}" value="#20282c" title="Cor (hex)">`;
+    cont.appendChild(row);
+  }
+})();
+
+/* ---------- linhas de forma ---------- */
+(function buildShapeRows(){
+  const cont=$('shpRows');
+  for(let i=0;i<N_SHP;i++){
+    const row=document.createElement('div');
+    row.className='shprow';
+    row.innerHTML=`
+      <label class="chk"><input type="checkbox" class="shpOn" data-i="${i}"> Forma ${i+1}</label>
+      <span class="ftag">Cor</span>
+      <input type="color" class="shpPick" data-i="${i}" value="#ffffff" title="Escolher cor">
+      <input type="text" class="shpColor clr" data-i="${i}" value="#ffffff" title="Cor de preenchimento (hex)">
+      <button type="button" class="eyed" data-i="${i}" title="Conta-gotas: pegar a cor de um ponto da página">🎨</button>
+      <span class="ftag">Opac.%</span>
+      <input type="number" class="shpOp sz" data-i="${i}" value="100" min="0" max="100" title="Opacidade (%)">
+      <span class="ftag">Borda pt</span>
+      <input type="number" class="shpBw sz" data-i="${i}" value="0" min="0" step="0.5" title="Espessura da borda (pt)">
+      <input type="text" class="shpBc clr" data-i="${i}" value="#20282c" title="Cor da borda (hex)">`;
+    cont.appendChild(row);
+  }
+})();
+
+function q(cls,i){return document.querySelector('.'+cls+'[data-i="'+i+'"]');}
+
+function getTextDefs(){
+  const arr=[];
+  for(let i=0;i<N_TXT;i++){
+    arr.push({
+      i,
+      on: q('txtOn',i).checked,
+      tpl: q('txtTpl',i).value,
+      font: q('txtFont',i).value,
+      size: +q('txtSize',i).value || 12,
+      color: normHex(q('txtColor',i).value) || '#000000'
+    });
+  }
+  return arr;
+}
+function getShapeDefs(){
+  const arr=[];
+  for(let i=0;i<N_SHP;i++){
+    arr.push({
+      i,
+      on: q('shpOn',i).checked,
+      color: normHex(q('shpColor',i).value) || '#ffffff',
+      op: Math.max(0,Math.min(100, +q('shpOp',i).value)) / 100,
+      bw: Math.max(0, +q('shpBw',i).value || 0),
+      bc: normHex(q('shpBc',i).value) || '#000000'
+    });
+  }
+  return arr;
+}
+
+/* ---------- PASSO 1 ---------- */
+const drop=$('drop');
+drop.onclick=()=>$('pdfInput').click();
+['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',ev=>{if(ev.dataTransfer.files[0])loadPDF(ev.dataTransfer.files[0]);});
+$('pdfInput').onchange=e=>{if(e.target.files[0])loadPDF(e.target.files[0]);};
+
+async function loadPDF(file){
+  if(file.type!=='application/pdf'){alert('Selecione um arquivo PDF.');return;}
+  originalBytes=await file.arrayBuffer();
+  pdfjsDoc=await pdfjsLib.getDocument({data:originalBytes.slice(0)}).promise;
+  pageCount=pdfjsDoc.numPages; curPage=1;
+  $('pdfInfo').textContent=`✔ ${file.name} — ${pageCount} página(s)`;
+  $('totPg').textContent=pageCount;
+  ['card2','card3','card4','card5'].forEach(c=>$(c).classList.remove('muted'));
+  buildBoxes();
+  await renderPage();
+}
+
+/* ---------- caixas no preview ---------- */
+function buildBoxes(){
+  for(let i=0;i<N_TXT;i++){
+    if($('txtBox'+i)) continue;
+    const b=document.createElement('div');
+    b.className='txtbox'; b.id='txtBox'+i; b.style.display='none';
+    $('previewArea').appendChild(b);
+    makeDraggable(b,null);
+  }
+  for(let i=0;i<N_SHP;i++){
+    if($('shpBox'+i)) continue;
+    const b=document.createElement('div');
+    b.className='shpbox'; b.id='shpBox'+i; b.style.display='none';
+    b.innerHTML=`<span class="lbl">Forma ${i+1}</span>
+      <span class="handle" data-dir="e"></span>
+      <span class="handle" data-dir="s"></span>
+      <span class="handle" data-dir="se"></span>`;
+    $('previewArea').appendChild(b);
+    makeDraggable(b,'free');
+  }
+}
+
+/* ---------- PASSO 2: render + preview ---------- */
+async function renderPage(){
+  const page=await pdfjsDoc.getPage(curPage);
+  const vp1=page.getViewport({scale:1});
+  const maxW=Math.min(620, document.querySelector('.wrap').clientWidth-60);
+  const scale=maxW/vp1.width;
+  const vp=page.getViewport({scale});
+  const cv=$('pageCanvas'); cv.width=vp.width; cv.height=vp.height;
+  await page.render({canvasContext:cv.getContext('2d',{willReadFrequently:true}),viewport:vp}).promise;
+  pxPerPt=(cv.clientWidth||cv.width)/vp1.width;
+  $('curPg').textContent=curPage;
+
+  const W=viewW(), H=viewH();
+  if(!$('qrBox').dataset.set){
+    const s=Math.round(W*0.18);
+    Object.assign($('qrBox').style,{left:(W-s-12)+'px',top:(H-s-12)+'px',width:s+'px',height:s+'px'});
+    $('qrBox').dataset.set='1';
+  }
+  refreshPreview();
+}
+function viewW(){const cv=$('pageCanvas');return cv.clientWidth||cv.width;}
+function viewH(){const cv=$('pageCanvas');return cv.clientHeight||cv.height;}
+function px2pt(px){return px/pxPerPt;}
+
+$('prevPg').onclick=async()=>{if(curPage>1){curPage--;await renderPage();}};
+$('nextPg').onclick=async()=>{if(curPage<pageCount){curPage++;await renderPage();}};
+
+/* resizeMode: null (só mover) | 'square' | 'free' */
+function makeDraggable(el,resizeMode){
+  let mode=null,dir='se',sx,sy,ox,oy,ow,oh;
+  el.addEventListener('pointerdown',e=>{
+    const h=(e.target.classList&&e.target.classList.contains('handle'))?e.target:null;
+    if(resizeMode && h){mode='resize'; dir=h.dataset.dir||'se';}
+    else mode='move';
+    sx=e.clientX;sy=e.clientY;ox=el.offsetLeft;oy=el.offsetTop;ow=el.offsetWidth;oh=el.offsetHeight;
+    el.setPointerCapture(e.pointerId); e.stopPropagation(); e.preventDefault();
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!mode)return;
+    const W=viewW(),H=viewH(),dx=e.clientX-sx,dy=e.clientY-sy;
+    if(mode==='move'){
+      el.style.left=Math.max(0,Math.min(ox+dx, W-el.offsetWidth))+'px';
+      el.style.top =Math.max(0,Math.min(oy+dy, H-el.offsetHeight))+'px';
+    }else if(resizeMode==='square'){
+      let ns=Math.max(20, ow+dx);
+      ns=Math.min(ns, W-el.offsetLeft, H-el.offsetTop);
+      el.style.width=ns+'px'; el.style.height=ns+'px';
+    }else{
+      if(dir.indexOf('e')>=0){
+        el.style.width=Math.max(6, Math.min(ow+dx, W-el.offsetLeft))+'px';
+      }
+      if(dir.indexOf('s')>=0){
+        el.style.height=Math.max(6, Math.min(oh+dy, H-el.offsetTop))+'px';
+      }
+    }
+  });
+  el.addEventListener('pointerup',()=>mode=null);
+  el.addEventListener('pointercancel',()=>mode=null);
+}
+makeDraggable($('qrBox'),'square');
+
+/* ---------- conta-gotas ---------- */
+document.querySelectorAll('.eyed').forEach(btn=>btn.addEventListener('click',()=>{
+  const i=+btn.dataset.i;
+  if(pickTargets && pickTargets.i===i){ stopPick(); return; }
+  document.querySelectorAll('.eyed').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  pickTargets={i, hex:q('shpColor',i), color:q('shpPick',i)};
+  $('previewArea').classList.add('picking');
+  $('pickStatus').textContent='Conta-gotas ativo — clique em um ponto da página para copiar a cor (Esc para cancelar).';
+  $('pickStatus').className='status ok';
+  $('card2').scrollIntoView({behavior:'smooth',block:'center'});
+}));
+function stopPick(){
+  pickTargets=null;
+  document.querySelectorAll('.eyed').forEach(b=>b.classList.remove('on'));
+  $('previewArea').classList.remove('picking');
+  $('pickStatus').textContent=''; $('pickStatus').className='status';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pickTargets)stopPick();});
+$('pageCanvas').addEventListener('click',e=>{
+  if(!pickTargets)return;
+  const cv=$('pageCanvas'), r=cv.getBoundingClientRect();
+  const x=Math.max(0,Math.min(cv.width -1, Math.floor((e.clientX-r.left)*cv.width /r.width)));
+  const y=Math.max(0,Math.min(cv.height-1, Math.floor((e.clientY-r.top )*cv.height/r.height)));
+  const d=cv.getContext('2d',{willReadFrequently:true}).getImageData(x,y,1,1).data;
+  const hex='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join('');
+  pickTargets.hex.value=hex; pickTargets.color.value=hex;
+  const i=pickTargets.i;
+  stopPick();
+  if(!q('shpOn',i).checked){ q('shpOn',i).checked=true; q('shpOn',i).dispatchEvent(new Event('change')); }
+  refreshPreview();
+  $('pickStatus').textContent='Cor capturada: '+hex;
+  $('pickStatus').className='status ok';
+});
+
+/* ---------- PASSO 4: dados ---------- */
+$('srcSeg').addEventListener('click',e=>{
+  if(!e.target.dataset.src)return;
+  srcMode=e.target.dataset.src;
+  [...$('srcSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.src===srcMode));
+  $('srcSerial').style.display=srcMode==='serial'?'block':'none';
+  $('srcList').style.display=srcMode==='list'?'block':'none';
+  $('srcCsv').style.display=srcMode==='csv'?'block':'none';
+  refreshPreview();
+});
+$('csvInput').onchange=async e=>{
+  const txt=await e.target.files[0].text();
+  const lines=txt.split(/\r?\n/).filter(l=>l.trim());
+  csvRows=lines.map(l=>l.split(/[,;]/).map(c=>c.trim().replace(/^"|"$/g,'')));
+  const sel=$('csvCol'); sel.innerHTML='';
+  csvRows[0].forEach((h,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`Coluna ${i+1}: ${h}`;sel.appendChild(o);});
+  refreshPreview();
+};
+$('csvCol').onchange=refreshPreview;
+['tpl','listData','serPref','serStart','serQty','serPad','ecc','qrDark','qrMargin'].forEach(id=>$(id).addEventListener('input',refreshPreview));
+$('qrSeg').addEventListener('click',e=>{
+  if(!e.target.dataset.qr)return;
+  qrOn = e.target.dataset.qr==='sim';
+  [...$('qrSeg').children].forEach(b=>b.classList.toggle('on', b.dataset.qr===(qrOn?'sim':'nao')));
+  $('qrFieldsWrap').style.display=qrOn?'block':'none';
+  $('qrFieldsWrap2').style.display=qrOn?'block':'none';
+  $('qrOffHint').style.display=qrOn?'none':'block';
+  refreshPreview();
+});
+
+// listeners dos textos
+document.querySelectorAll('.txtTpl,.txtFont,.txtSize,.txtColor').forEach(el=>el.addEventListener('input',refreshPreview));
+document.querySelectorAll('.txtOn').forEach(el=>el.addEventListener('change',e=>{
+  const i=+e.target.dataset.i, box=$('txtBox'+i);
+  if(e.target.checked && box && !box.dataset.set){
+    box.style.left='14px'; box.style.top=(14+i*26)+'px'; box.dataset.set='1';
+  }
+  refreshPreview();
+}));
+
+// listeners das formas
+document.querySelectorAll('.shpColor,.shpOp,.shpBw,.shpBc').forEach(el=>el.addEventListener('input',()=>{
+  if(el.classList.contains('shpColor')){
+    const h=normHex(el.value); if(h) q('shpPick',+el.dataset.i).value=h;
+  }
+  refreshPreview();
+}));
+document.querySelectorAll('.shpPick').forEach(el=>el.addEventListener('input',()=>{
+  q('shpColor',+el.dataset.i).value=el.value;
+  refreshPreview();
+}));
+document.querySelectorAll('.shpOn').forEach(el=>el.addEventListener('change',e=>{
+  const i=+e.target.dataset.i, box=$('shpBox'+i);
+  if(e.target.checked && box && !box.dataset.set){
+    const W=viewW()||400, H=viewH()||400;
+    box.style.left=Math.round(W*0.12+i*10)+'px';
+    box.style.top =Math.round(H*0.12+i*10)+'px';
+    box.style.width =Math.round(W*0.30)+'px';
+    box.style.height=Math.round(H*0.08)+'px';
+    box.dataset.set='1';
+  }
+  refreshPreview();
+}));
+
+function getRecords(){
+  if(outMode==='single') return [{val:'',cols:['']}];
+  if(srcMode==='serial'){
+    const pref=$('serPref').value,start=+$('serStart').value,qty=+$('serQty').value,pad=+$('serPad').value;
+    const out=[]; for(let i=0;i<qty;i++){const v=pref+String(start+i).padStart(pad,'0');out.push({val:v,cols:[v]});}
+    return out;
+  }
+  if(srcMode==='list'){
+    return $('listData').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(v=>({val:v,cols:[v]}));
+  }
+  if(srcMode==='csv' && csvRows){
+    const c=+$('csvCol').value;
+    const hasHeader=isNaN(Number(csvRows[0][c])) && csvRows.length>1;
+    return csvRows.slice(hasHeader?1:0).filter(r=>r[c]).map(r=>({val:r[c],cols:r}));
+  }
+  return [];
+}
+function applyTpl(str,rec){
+  let out=String(str||'').replace(/\{valor\}/g, rec.val);
+  out=out.replace(/\{c(\d+)\}/g,(m,n)=>{const k=+n-1; return (rec.cols && rec.cols[k]!=null)?rec.cols[k]:'';});
+  return out;
+}
+
+function makeQrPng(text){
+  const qr=qrcode(0,$('ecc').value);
+  qr.addData(text); qr.make();
+  const count=qr.getModuleCount(), margin=+$('qrMargin').value, dark=normHex($('qrDark').value)||'#000000', cell=8;
+  const total=(count+margin*2)*cell;
+  const cv=document.createElement('canvas'); cv.width=total; cv.height=total;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,total,total);
+  ctx.fillStyle=dark;
+  for(let r=0;r<count;r++)for(let c=0;c<count;c++){if(qr.isDark(r,c))ctx.fillRect((c+margin)*cell,(r+margin)*cell,cell,cell);}
+  return cv.toDataURL('image/png');
+}
+
+function refreshPreview(){
+  const recs=getRecords();
+  const rec=recs[0]||{val:'',cols:['']};
+  const useQr=qrOn && outMode!=='single';
+
+  // QR
+  $('qrBox').style.display=useQr?'block':'none';
+  if(useQr && recs.length && rec.val){
+    $('qrPrev').src=makeQrPng(applyTpl($('tpl').value,rec));
+    $('qrPrevTxt').textContent=`${recs.length} registro(s). Ex.: ${applyTpl($('tpl').value,rec)}`;
+  }else{ $('qrPrev').src=''; $('qrPrevTxt').textContent=recs.length?'QR desativado.':'Nenhum dado ainda.'; }
+
+  // formas
+  getShapeDefs().forEach(s=>{
+    const box=$('shpBox'+s.i); if(!box)return;
+    if(s.on){
+      box.style.display='block';
+      box.style.background=hexRgba(s.color,s.op);
+      box.style.boxShadow=s.bw>0 ? `inset 0 0 0 ${Math.max(1,s.bw*pxPerPt)}px ${s.bc}` : 'none';
+    }else box.style.display='none';
+  });
+
+  // textos
+  getTextDefs().forEach(t=>{
+    const box=$('txtBox'+t.i); if(!box)return;
+    if(t.on){
+      box.style.display='inline-block';
+      box.style.fontFamily=cssFont(t.font);
+      box.style.fontWeight=isBold(t.font)?'700':'400';
+      box.style.fontSize=(t.size*pxPerPt)+'px';
+      box.style.color=t.color;
+      box.textContent=applyTpl(t.tpl,rec)||('Texto '+(t.i+1));
+    }else box.style.display='none';
+  });
+}
+
+/* ---------- PASSO 5 ---------- */
+$('outSeg').addEventListener('click',e=>{
+  if(!e.target.dataset.out)return;
+  outMode=e.target.dataset.out;
+  [...$('outSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.out===outMode));
+  $('zipOpts').style.display=outMode==='zip'?'block':'none';
+  $('singleHint').style.display=outMode==='single'?'block':'none';
+  refreshPreview();
+});
+$('resetBtn').onclick=()=>location.reload();
+
+function dataURLtoBytes(d){const b=atob(d.split(',')[1]);const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+
+$('genBtn').onclick=async()=>{
+  if(!originalBytes){setStatus('Carregue um PDF primeiro.','err');return;}
+  const recs=getRecords();
+  if(!recs.length){setStatus('Nenhum dado para gerar.','err');return;}
+
+  const useQr=qrOn && outMode!=='single';
+  const nada = !useQr
+    && !getTextDefs().some(d=>d.on && d.tpl.trim())
+    && !getShapeDefs().some(s=>s.on);
+  if(nada){setStatus('Nada para inserir: marque o QR, um texto ou uma forma.','err');return;}
+
+  $('genBtn').disabled=true; $('bar').style.display='block'; setStatus('Gerando...','');
+  try{
+    if(outMode==='single'){
+      download(new Blob([await buildOne(recs[0])],{type:'application/pdf'}),'pdf_editado.pdf');
+      progress(1,1);
+    }else if(outMode==='zip'){
+      const zip=new JSZip();
+      for(let i=0;i<recs.length;i++){
+        zip.file($('fnPat').value.replace(/\{valor\}/g,sanitize(recs[i].val)), await buildOne(recs[i]));
+        progress(i+1,recs.length);
+      }
+      download(await zip.generateAsync({type:'blob'}),'qrcodes_nina.zip');
+    }else{
+      const {PDFDocument}=PDFLib;
+      const merged=await PDFDocument.create();
+      for(let i=0;i<recs.length;i++){
+        const src=await PDFDocument.load(await buildOne(recs[i]));
+        (await merged.copyPages(src,src.getPageIndices())).forEach(p=>merged.addPage(p));
+        progress(i+1,recs.length);
+      }
+      download(new Blob([await merged.save()],{type:'application/pdf'}),'qrcodes_nina_unico.pdf');
+    }
+    setStatus(`✔ Concluído: ${outMode==='single'?1:recs.length} arquivo(s)/registro(s).`,'ok');
+  }catch(err){console.error(err);setStatus('Erro ao gerar: '+err.message,'err');}
+  finally{$('genBtn').disabled=false;}
+};
+
+async function buildOne(rec){
+  const {PDFDocument}=PDFLib;
+  const doc=await PDFDocument.load(originalBytes.slice(0));
+  const pages=doc.getPages();
+  const targets=$('allPages').checked ? pages.map((_,i)=>i) : [curPage-1];
+
+  // QR
+  let qrImg=null, qrLeft=0,qrTop=0,qrSize=0;
+  if(qrOn && outMode!=='single'){
+    qrImg=await doc.embedPng(dataURLtoBytes(makeQrPng(applyTpl($('tpl').value,rec))));
+    qrLeft=px2pt($('qrBox').offsetLeft);
+    qrTop =px2pt($('qrBox').offsetTop);
+    qrSize=px2pt($('qrBox').offsetWidth);
+  }
+
+  // formas
+  const shapes=getShapeDefs().filter(s=>s.on).map(s=>{
+    const b=$('shpBox'+s.i);
+    if(!b) return null;
+    return Object.assign({},s,{
+      x:px2pt(b.offsetLeft), yTop:px2pt(b.offsetTop),
+      w:px2pt(b.offsetWidth), h:px2pt(b.offsetHeight)
+    });
+  }).filter(s=>s && s.w>0 && s.h>0);
+
+  // textos
+  const defs=getTextDefs().filter(d=>d.on && d.tpl.trim());
+  const fontCache={};
+  for(const d of defs){ if(!fontCache[d.font]) fontCache[d.font]=await doc.embedFont(stdFont(d.font)); }
+
+  for(const idx of targets){
+    const pg=pages[idx]; if(!pg) continue;
+    const h=pg.getHeight();
+
+    // 1) formas primeiro (ficam por baixo de tudo que vem depois)
+    for(const s of shapes){
+      const opts={
+        x:s.x, y:h-s.yTop-s.h, width:s.w, height:s.h,
+        color:hexRgb(s.color), opacity:s.op
+      };
+      if(s.bw>0){ opts.borderWidth=s.bw; opts.borderColor=hexRgb(s.bc); opts.borderOpacity=1; }
+      pg.drawRectangle(opts);
+    }
+
+    // 2) QR
+    if(qrImg) pg.drawImage(qrImg,{x:qrLeft,y:h-qrTop-qrSize,width:qrSize,height:qrSize});
+
+    // 3) textos
+    for(const d of defs){
+      const box=$('txtBox'+d.i);
+      const leftPts=px2pt(box.offsetLeft);
+      const topPts =px2pt(box.offsetTop);
+      const txt=applyTpl(d.tpl,rec);
+      if(txt) pg.drawText(txt,{x:leftPts, y:h-topPts-d.size*0.8, size:d.size, font:fontCache[d.font], color:hexRgb(d.color)});
+    }
+  }
+  return await doc.save();
+}
+
+function sanitize(s){return String(s).replace(/[\/\\:*?"<>|]/g,'_');}
+function setStatus(t,cls){const s=$('status');s.textContent=t;s.className='status '+(cls||'');}
+function progress(n,total){$('barFill').style.width=Math.round(n/total*100)+'%';}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+</script>
+</body>
+</html>
